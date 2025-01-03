@@ -5,7 +5,7 @@ import { withPageAuth } from '../../../lib/withAuth';
 import Link from 'next/link';
 
 export default function PractitionerDashboard() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const router = useRouter();
 
   const handleLogout = async () => {
@@ -13,11 +13,33 @@ export default function PractitionerDashboard() {
     router.push('/');
   };
 
+  if (status === 'loading') {
+    return <div className="container mx-auto px-4 py-8 max-w-md">Loading...</div>;
+  }
+
+  if (!session) {
+    return (
+      <div className="container mx-auto px-4 py-8 max-w-md">
+        <div className="text-center">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
+            Session expired
+          </h1>
+          <button
+            onClick={() => router.push('/')}
+            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+          >
+            Return to Home
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="container mx-auto px-4 py-8 max-w-md">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-          Welcome, {session.user.name}
+          Welcome, {session?.user?.name || 'User'}
         </h1>
         <button
           onClick={handleLogout}
