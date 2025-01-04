@@ -69,6 +69,12 @@ export default function UserDashboard() {
           title="AI Wellness Assistant" 
           description="Get personalized wellness advice"
         />
+
+        <DashboardLink 
+          href="/dashboard/user/appointments" 
+          title="My Appointments" 
+          description="View and manage your scheduled appointments"
+        />
       </div>
     </div>
   );

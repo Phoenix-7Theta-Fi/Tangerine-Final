@@ -24,11 +24,13 @@ export default function Navigation() {
   // Role-specific navigation items
   const practitionerLinks = [
     { href: '/dashboard/practitioner/create', label: 'Create Post', roles: ['practitioner'] },
-    { href: '/dashboard/practitioner/profile', label: 'Profile', roles: ['practitioner'] }
+    { href: '/dashboard/practitioner/profile', label: 'Profile', roles: ['practitioner'] },
+    { href: '/dashboard/practitioner/consultations', label: 'Consultations', roles: ['practitioner'] }
   ];
 
   const userLinks = [
-    { href: '/dashboard/user/profile', label: 'Profile', roles: ['user'] }
+    { href: '/dashboard/user/profile', label: 'Profile', roles: ['user'] },
+    { href: '/dashboard/user/appointments', label: 'Appointments', roles: ['user'] }
   ];
 
   // Filter links based on user role
