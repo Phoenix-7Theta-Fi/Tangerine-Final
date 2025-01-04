@@ -1,6 +1,144 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { withPageAuth } from '../../lib/withAuth'; // Corrected import path
+import { withPageAuth } from '../../lib/withAuth';
+import { toast } from 'react-toastify';
+
+function TimeSlotBooking({ practitioner }) {
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [selectedSlot, setSelectedSlot] = useState(null);
+  const [consultationType, setConsultationType] = useState('');
+  const [notes, setNotes] = useState('');
+  const router = useRouter();
+  const { id } = router.query;
+
+  const handleBookAppointment = async () => {
+    if (!selectedDate || !selectedSlot || !consultationType) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+
+    try {
+      const bookingData = {
+        practitionerId: id,
+        date: selectedDate,
+        timeSlot: selectedSlot,
+        consultationType,
+        notes
+      };
+
+      console.log('Booking Data:', bookingData);
+
+      const response = await fetch('/api/appointments/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(bookingData)
+      });
+
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to book appointment');
+      }
+
+      toast.success('Appointment booked successfully');
+      // Reset form
+      setSelectedDate(null);
+      setSelectedSlot(null);
+      setConsultationType('');
+      setNotes('');
+    } catch (error) {
+      console.error('Booking error:', error);
+      toast.error(error.message);
+    }
+  };
+
+  const availableDays = practitioner?.professionalProfile?.consultationDetails?.availableDays || [];
+
+  const handleDateChange = (e) => {
+    setSelectedDate(e.target.value);
+    setSelectedSlot(null); // Reset selected slot when date changes
+  };
+
+  const handleSlotChange = (e) => {
+    const [start, end] = e.target.value.split('-');
+    setSelectedSlot({ start, end });
+  };
+
+  return (
+    <div className="mt-8">
+      <h2 className="text-xl font-semibold mb-4 border-b pb-2 text-gray-900 dark:text-white">Book Appointment</h2>
+      
+      <div className="mb-4">
+        <label htmlFor="appointmentDate" className="block text-gray-700 dark:text-gray-300 text-sm font-bold mb-2">
+          Select Date:
+        </label>
+        <input
+          type="date"
+          id="appointmentDate"
+          onChange={handleDateChange}
+          className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+        />
+      </div>
+
+      {selectedDate && (
+        <div className="mb-4">
+          <label htmlFor="timeSlot" className="block text-gray-700 dark:text-gray-300 text-sm font-bold mb-2">
+            Select Time Slot:
+          </label>
+          <select
+            id="timeSlot"
+            onChange={handleSlotChange}
+            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+          >
+            <option value="">Select a time slot</option>
+            {availableDays
+              .find(day => day.day === new Date(selectedDate).toLocaleString('en-US', { weekday: 'long' }))
+              ?.timeSlots
+              .filter(slot => !slot.isBooked)
+              .map(slot => (
+                <option key={`${slot.start}-${slot.end}`} value={`${slot.start}-${slot.end}`}>
+                  {slot.start} - {slot.end}
+                </option>
+              ))}
+          </select>
+        </div>
+      )}
+
+      <div className="mb-4">
+        <label htmlFor="consultationType" className="block text-gray-700 dark:text-gray-300 text-sm font-bold mb-2">
+          Consultation Type:
+        </label>
+        <select
+          id="consultationType"
+          value={consultationType}
+          onChange={(e) => setConsultationType(e.target.value)}
+          className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+        >
+          <option value="">Select Type</option>
+          <option value="online">Online</option>
+          <option value="in-person">In-Person</option>
+          <option value="phone">Phone</option>
+        </select>
+      </div>
+
+      <div className="mb-6">
+        <label htmlFor="notes" className="block text-gray-700 dark:text-gray-300 text-sm font-bold mb-2">
+          Notes (Optional):
+        </label>
+        <textarea
+          id="notes"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+        />
+      </div>
+
+      <button onClick={handleBookAppointment} className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
+        Book Now
+      </button>
+    </div>
+  );
+}
 
 export default function PractitionerPublicProfile() {
   const router = useRouter();
@@ -168,6 +306,8 @@ export default function PractitionerPublicProfile() {
             </div>
           </div>
         )}
+
+        {profile && <TimeSlotBooking practitioner={profile} />}
       </div>
     </div>
   );

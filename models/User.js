@@ -1,5 +1,46 @@
 import mongoose from 'mongoose';
 
+const AppointmentSchema = new mongoose.Schema({
+  practitionerId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  date: {
+    type: Date,
+    required: true
+  },
+  timeSlot: {
+    start: {
+      type: String,
+      required: true
+    },
+    end: {
+      type: String,
+      required: true
+    }
+  },
+  status: {
+    type: String,
+    enum: ['pending', 'confirmed', 'cancelled'],
+    default: 'pending'
+  },
+  consultationType: {
+    type: String,
+    enum: ['online', 'in-person', 'phone'],
+    required: true
+  },
+  notes: {
+    type: String,
+    maxlength: 500
+  }
+});
+
 const UserSchema = new mongoose.Schema({
   name: {
     type: String,
@@ -127,7 +168,8 @@ const UserSchema = new mongoose.Schema({
       alternateEmail: String,
       professionalWebsite: String
     }
-  }
+  },
+  appointments: [AppointmentSchema]
 });
 
 export default mongoose.models.User || mongoose.model('User', UserSchema);
