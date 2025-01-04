@@ -4,6 +4,76 @@ import { useRouter } from 'next/router';
 import { withPageAuth } from '../../../lib/withAuth';
 import Link from 'next/link';
 
+// TimeSlotModal component
+function TimeSlotModal({ day, onClose, onSave, initialSlots = [] }) {
+  const [slots, setSlots] = useState(initialSlots);
+
+  // Generate time slots from 9 AM to 5 PM
+  const generateTimeSlots = () => {
+    const slots = [];
+    for (let hour = 9; hour < 17; hour++) {
+      const start = `${hour.toString().padStart(2, '0')}:00`;
+      const end = `${(hour + 1).toString().padStart(2, '0')}:00`;
+      const existingSlot = initialSlots.find(s => s.start === start && s.end === end);
+      slots.push({
+        start,
+        end,
+        isBooked: existingSlot ? existingSlot.isBooked : false
+      });
+    }
+    return slots;
+  };
+
+  useEffect(() => {
+    if (initialSlots.length === 0) {
+      setSlots(generateTimeSlots());
+    }
+  }, [day]);
+
+  const handleSlotToggle = (index) => {
+    const newSlots = [...slots];
+    newSlots[index].isBooked = !newSlots[index].isBooked;
+    setSlots(newSlots);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg w-11/12 max-w-2xl">
+        <h2 className="text-xl font-bold mb-4">Manage Time Slots for {day}</h2>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          {slots.map((slot, index) => (
+            <button
+              key={index}
+              onClick={() => handleSlotToggle(index)}
+              className={`p-3 rounded transition-colors ${
+                slot.isBooked 
+                  ? 'bg-red-500 hover:bg-red-600 text-white' 
+                  : 'bg-green-500 hover:bg-green-600 text-white'
+              }`}
+            >
+              {slot.start} - {slot.end}
+            </button>
+          ))}
+        </div>
+        <div className="flex justify-end mt-6 space-x-2">
+          <button 
+            onClick={() => onSave(slots)}
+            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+          >
+            Save
+          </button>
+          <button 
+            onClick={onClose}
+            className="bg-gray-300 text-gray-700 dark:bg-gray-600 dark:text-gray-200 px-4 py-2 rounded hover:bg-gray-400 dark:hover:bg-gray-500"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function PractitionerProfilePage() {
   const { data: session } = useSession();
   const router = useRouter();
@@ -31,6 +101,54 @@ export default function PractitionerProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showTimeSlotModal, setShowTimeSlotModal] = useState(false);
+  const [selectedDay, setSelectedDay] = useState(null);
+
+  // Handle time slot management
+  const handleManageTimeSlots = (day) => {
+    const dayData = profile.professionalProfile.consultationDetails.availableDays
+      .find(d => d.day === day);
+    setSelectedDay(day);
+    setShowTimeSlotModal(true);
+  };
+
+  const handleSaveTimeSlots = async (slots) => {
+    try {
+      const response = await fetch('/api/practitioner/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          day: selectedDay,
+          timeSlots: slots
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save time slots');
+      }
+
+      const data = await response.json();
+      
+      // Update local state with new time slots
+      setProfile(prev => ({
+        ...prev,
+        professionalProfile: {
+          ...prev.professionalProfile,
+          consultationDetails: {
+            ...prev.professionalProfile.consultationDetails,
+            availableDays: prev.professionalProfile.consultationDetails.availableDays.map(d => 
+              d.day === selectedDay ? { ...d, timeSlots: slots } : d
+            )
+          }
+        }
+      }));
+
+      setShowTimeSlotModal(false);
+    } catch (error) {
+      console.error('Failed to save time slots', error);
+      setError(error.message);
+    }
+  };
 
   useEffect(() => {
     async function fetchProfileData() {
@@ -124,6 +242,243 @@ export default function PractitionerProfilePage() {
       setError(error.message);
     }
   };
+
+  function ProfileEditForm({ profile, onSave, onChange }) {
+    const handleChange = (field, value) => {
+      onChange(prev => ({
+        ...prev,
+        professionalProfile: {
+          ...prev.professionalProfile,
+          [field]: value
+        }
+      }));
+    };
+
+    const handleConsultationChange = (field, value) => {
+      onChange(prev => ({
+        ...prev,
+        professionalProfile: {
+          ...prev.professionalProfile,
+          consultationDetails: {
+            ...prev.professionalProfile.consultationDetails,
+            [field]: value
+          }
+        }
+      }));
+    };
+
+    return (
+      <form onSubmit={onSave} className="space-y-6">
+        <div>
+          <label className="block text-gray-700 dark:text-gray-300 mb-2">Specialization</label>
+          <input
+            type="text"
+            value={profile.professionalProfile.specialization}
+            onChange={(e) => handleChange('specialization', e.target.value)}
+            className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600"
+          />
+        </div>
+
+        <div>
+          <label className="block text-gray-700 dark:text-gray-300 mb-2">Professional Title</label>
+          <input
+            type="text"
+            value={profile.professionalProfile.professionalTitle}
+            onChange={(e) => handleChange('professionalTitle', e.target.value)}
+            className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600"
+          />
+        </div>
+
+        <div>
+          <label className="block text-gray-700 dark:text-gray-300 mb-2">Bio</label>
+          <textarea
+            value={profile.professionalProfile.bio}
+            onChange={(e) => handleChange('bio', e.target.value)}
+            className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600"
+          />
+        </div>
+
+        <div className="border-t pt-4">
+          <h3 className="text-lg font-semibold mb-4">Consultation Details</h3>
+          
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-gray-700 dark:text-gray-300 mb-2">
+                Consultation Availability
+              </label>
+              <select
+                value={profile.professionalProfile.consultationDetails.isAvailable}
+                onChange={(e) => handleConsultationChange('isAvailable', e.target.value === 'true')}
+                className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600"
+              >
+                <option value="false">Not Available</option>
+                <option value="true">Available</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-gray-700 dark:text-gray-300 mb-2">
+                Consultation Fee ($)
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={profile.professionalProfile.consultationDetails.consultationFee}
+                onChange={(e) => handleConsultationChange('consultationFee', Number(e.target.value))}
+                className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600"
+              />
+            </div>
+          </div>
+
+          <div className="mt-4">
+            <label className="block text-gray-700 dark:text-gray-300 mb-2">
+              Consultation Methods
+            </label>
+            <div className="flex space-x-4">
+              {['Online', 'In-Person', 'Phone'].map(method => (
+                <label key={method} className="inline-flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={profile.professionalProfile.consultationDetails.consultationMethods.includes(method)}
+                    onChange={(e) => {
+                      const methods = profile.professionalProfile.consultationDetails.consultationMethods;
+                      const updatedMethods = e.target.checked
+                        ? [...methods, method]
+                        : methods.filter(m => m !== method);
+                      handleConsultationChange('consultationMethods', updatedMethods);
+                    }}
+                    className="form-checkbox h-5 w-5 text-blue-600 dark:text-blue-400"
+                  />
+                  <span className="ml-2 text-gray-700 dark:text-gray-300">{method}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-4">
+            <label className="block text-gray-700 dark:text-gray-300 mb-2">
+              Available Days
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(day => (
+                <label key={day} className="inline-flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={profile.professionalProfile.consultationDetails.availableDays.some(d => d.day === day)}
+                    onChange={(e) => {
+                      const availableDays = profile.professionalProfile.consultationDetails.availableDays;
+                      const updatedDays = e.target.checked
+                        ? [...availableDays, { day, timeSlots: [] }]
+                        : availableDays.filter(d => d.day !== day);
+                      handleConsultationChange('availableDays', updatedDays);
+                    }}
+                    className="form-checkbox h-5 w-5 text-blue-600 dark:text-blue-400"
+                  />
+                  <span className="ml-2 text-gray-700 dark:text-gray-300">{day}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <button
+          type="submit"
+          className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors"
+        >
+          Save Profile
+        </button>
+      </form>
+    );
+  }
+
+  function ProfileDisplayView({ profile }) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <p className="font-medium text-gray-600 dark:text-gray-400">Specialization:</p>
+          <p className="text-lg text-gray-900 dark:text-white">{profile.professionalProfile.specialization || 'N/A'}</p>
+        </div>
+        
+        <div>
+          <p className="font-medium text-gray-600 dark:text-gray-400">Professional Title:</p>
+          <p className="text-lg text-gray-900 dark:text-white">{profile.professionalProfile.professionalTitle || 'N/A'}</p>
+        </div>
+        
+        <div>
+          <p className="font-medium text-gray-600 dark:text-gray-400">Bio:</p>
+          <p className="text-lg text-gray-900 dark:text-white">{profile.professionalProfile.bio || 'N/A'}</p>
+        </div>
+
+        <div className="border-t pt-4">
+          <h3 className="text-lg font-semibold mb-4">Consultation Details</h3>
+          
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <p className="font-medium text-gray-600 dark:text-gray-400">Availability:</p>
+              <p className={`font-bold ${
+                profile.professionalProfile.consultationDetails.isAvailable 
+                  ? 'text-green-600 dark:text-green-400' 
+                  : 'text-red-600 dark:text-red-400'
+              }`}>
+                {profile.professionalProfile.consultationDetails.isAvailable 
+                  ? 'Available for Consultation' 
+                  : 'Not Currently Available'}
+              </p>
+            </div>
+            
+            <div>
+              <p className="font-medium text-gray-600 dark:text-gray-400">Consultation Fee:</p>
+              <p className="font-bold text-gray-900 dark:text-white">
+                ${profile.professionalProfile.consultationDetails.consultationFee || 0}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4">
+            <p className="font-medium text-gray-600 dark:text-gray-400">Consultation Methods:</p>
+            <ul className="list-disc pl-5">
+              {profile.professionalProfile.consultationDetails.consultationMethods.map(method => (
+                <li key={method} className="font-bold text-gray-900 dark:text-white">{method}</li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="mt-4">
+            <p className="font-medium text-gray-600 dark:text-gray-400">Available Days:</p>
+            <ul className="list-disc pl-5">
+              {profile.professionalProfile.consultationDetails.availableDays.map(day => (
+                <li key={day.day} className="font-bold text-gray-900 dark:text-white">
+                  <div className="flex items-center justify-between">
+                    <span>{day.day}</span>
+                    <button
+                      onClick={() => handleManageTimeSlots(day.day)}
+                      className="ml-4 bg-blue-500 text-white px-2 py-1 rounded text-sm hover:bg-blue-600"
+                    >
+                      Manage Slots
+                    </button>
+                  </div>
+                  {day.timeSlots && day.timeSlots.length > 0 && (
+                    <div className="mt-2 grid grid-cols-2 gap-2">
+                      {day.timeSlots.map((slot, index) => (
+                        <div
+                          key={index}
+                          className={`p-2 rounded text-sm ${
+                            slot.isBooked ? 'bg-red-100 dark:bg-red-900' : 'bg-green-100 dark:bg-green-900'
+                          }`}
+                        >
+                          {slot.start} - {slot.end}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -258,219 +613,18 @@ export default function PractitionerProfilePage() {
           </div>
         )}
       </div>
-    </div>
-  );
-}
 
-function ProfileEditForm({ profile, onSave, onChange }) {
-  const handleChange = (field, value) => {
-    onChange(prev => ({
-      ...prev,
-      professionalProfile: {
-        ...prev.professionalProfile,
-        [field]: value
-      }
-    }));
-  };
-
-  const handleConsultationChange = (field, value) => {
-    onChange(prev => ({
-      ...prev,
-      professionalProfile: {
-        ...prev.professionalProfile,
-        consultationDetails: {
-          ...prev.professionalProfile.consultationDetails,
-          [field]: value
-        }
-      }
-    }));
-  };
-
-  return (
-    <form onSubmit={onSave} className="space-y-6">
-      <div>
-        <label className="block text-gray-700 dark:text-gray-300 mb-2">Specialization</label>
-        <input
-          type="text"
-          value={profile.professionalProfile.specialization}
-          onChange={(e) => handleChange('specialization', e.target.value)}
-          className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600"
+      {showTimeSlotModal && (
+        <TimeSlotModal
+          day={selectedDay}
+          onClose={() => setShowTimeSlotModal(false)}
+          onSave={handleSaveTimeSlots}
+          initialSlots={
+            profile.professionalProfile.consultationDetails.availableDays
+              .find(d => d.day === selectedDay)?.timeSlots || []
+          }
         />
-      </div>
-
-      <div>
-        <label className="block text-gray-700 dark:text-gray-300 mb-2">Professional Title</label>
-        <input
-          type="text"
-          value={profile.professionalProfile.professionalTitle}
-          onChange={(e) => handleChange('professionalTitle', e.target.value)}
-          className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600"
-        />
-      </div>
-
-      <div>
-        <label className="block text-gray-700 dark:text-gray-300 mb-2">Bio</label>
-        <textarea
-          value={profile.professionalProfile.bio}
-          onChange={(e) => handleChange('bio', e.target.value)}
-          className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600"
-        />
-      </div>
-
-      <div className="border-t pt-4">
-        <h3 className="text-lg font-semibold mb-4">Consultation Details</h3>
-        
-        <div className="grid md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-gray-700 dark:text-gray-300 mb-2">
-              Consultation Availability
-            </label>
-            <select
-              value={profile.professionalProfile.consultationDetails.isAvailable}
-              onChange={(e) => handleConsultationChange('isAvailable', e.target.value === 'true')}
-              className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600"
-            >
-              <option value="false">Not Available</option>
-              <option value="true">Available</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-gray-700 dark:text-gray-300 mb-2">
-              Consultation Fee ($)
-            </label>
-            <input
-              type="number"
-              min="0"
-              value={profile.professionalProfile.consultationDetails.consultationFee}
-              onChange={(e) => handleConsultationChange('consultationFee', Number(e.target.value))}
-              className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600"
-            />
-          </div>
-        </div>
-
-        <div className="mt-4">
-          <label className="block text-gray-700 dark:text-gray-300 mb-2">
-            Consultation Methods
-          </label>
-          <div className="flex space-x-4">
-            {['Online', 'In-Person', 'Phone'].map(method => (
-              <label key={method} className="inline-flex items-center">
-                <input
-                  type="checkbox"
-                  checked={profile.professionalProfile.consultationDetails.consultationMethods.includes(method)}
-                  onChange={(e) => {
-                    const methods = profile.professionalProfile.consultationDetails.consultationMethods;
-                    const updatedMethods = e.target.checked
-                      ? [...methods, method]
-                      : methods.filter(m => m !== method);
-                    handleConsultationChange('consultationMethods', updatedMethods);
-                  }}
-                  className="form-checkbox h-5 w-5 text-blue-600 dark:text-blue-400"
-                />
-                <span className="ml-2 text-gray-700 dark:text-gray-300">{method}</span>
-              </label>
-            ))}
-          </div>
-        </div>
-
-        <div className="mt-4">
-          <label className="block text-gray-700 dark:text-gray-300 mb-2">
-            Available Days
-          </label>
-          <div className="grid grid-cols-3 gap-2">
-            {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(day => (
-              <label key={day} className="inline-flex items-center">
-                <input
-                  type="checkbox"
-                  checked={profile.professionalProfile.consultationDetails.availableDays.some(d => d.day === day)}
-                  onChange={(e) => {
-                    const availableDays = profile.professionalProfile.consultationDetails.availableDays;
-                    const updatedDays = e.target.checked
-                      ? [...availableDays, { day, timeSlots: [] }]
-                      : availableDays.filter(d => d.day !== day);
-                    handleConsultationChange('availableDays', updatedDays);
-                  }}
-                  className="form-checkbox h-5 w-5 text-blue-600 dark:text-blue-400"
-                />
-                <span className="ml-2 text-gray-700 dark:text-gray-300">{day}</span>
-              </label>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <button
-        type="submit"
-        className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors"
-      >
-        Save Profile
-      </button>
-    </form>
-  );
-}
-
-function ProfileDisplayView({ profile }) {
-  return (
-    <div className="space-y-6">
-      <div>
-        <p className="font-medium text-gray-600 dark:text-gray-400">Specialization:</p>
-        <p className="text-lg text-gray-900 dark:text-white">{profile.professionalProfile.specialization || 'N/A'}</p>
-      </div>
-      
-      <div>
-        <p className="font-medium text-gray-600 dark:text-gray-400">Professional Title:</p>
-        <p className="text-lg text-gray-900 dark:text-white">{profile.professionalProfile.professionalTitle || 'N/A'}</p>
-      </div>
-      
-      <div>
-        <p className="font-medium text-gray-600 dark:text-gray-400">Bio:</p>
-        <p className="text-lg text-gray-900 dark:text-white">{profile.professionalProfile.bio || 'N/A'}</p>
-      </div>
-
-      <div className="border-t pt-4">
-        <h3 className="text-lg font-semibold mb-4">Consultation Details</h3>
-        
-        <div className="grid md:grid-cols-2 gap-4">
-          <div>
-            <p className="font-medium text-gray-600 dark:text-gray-400">Availability:</p>
-            <p className={`font-bold ${
-              profile.professionalProfile.consultationDetails.isAvailable 
-                ? 'text-green-600 dark:text-green-400' 
-                : 'text-red-600 dark:text-red-400'
-            }`}>
-              {profile.professionalProfile.consultationDetails.isAvailable 
-                ? 'Available for Consultation' 
-                : 'Not Currently Available'}
-            </p>
-          </div>
-          
-          <div>
-            <p className="font-medium text-gray-600 dark:text-gray-400">Consultation Fee:</p>
-            <p className="font-bold text-gray-900 dark:text-white">
-              ${profile.professionalProfile.consultationDetails.consultationFee || 0}
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-4">
-          <p className="font-medium text-gray-600 dark:text-gray-400">Consultation Methods:</p>
-          <ul className="list-disc pl-5">
-            {profile.professionalProfile.consultationDetails.consultationMethods.map(method => (
-              <li key={method} className="font-bold text-gray-900 dark:text-white">{method}</li>
-            ))}
-          </ul>
-        </div>
-
-        <div className="mt-4">
-          <p className="font-medium text-gray-600 dark:text-gray-400">Available Days:</p>
-          <ul className="list-disc pl-5">
-            {profile.professionalProfile.consultationDetails.availableDays.map(day => (
-              <li key={day.day} className="font-bold text-gray-900 dark:text-white">{day.day}</li>
-            ))}
-          </ul>
-        </div>
-      </div>
+      )}
     </div>
   );
 }

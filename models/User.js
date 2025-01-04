@@ -56,8 +56,28 @@ const UserSchema = new mongoose.Schema({
           enum: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
         },
         timeSlots: [{
-          start: String,
-          end: String
+          start: {
+            type: String,
+            validate: {
+              validator: function(v) {
+                return /^([01]\d|2[0-3]):([0-5]\d)$/.test(v);
+              },
+              message: 'Invalid time format. Use HH:MM 24-hour format'
+            }
+          },
+          end: {
+            type: String,
+            validate: {
+              validator: function(v) {
+                return /^([01]\d|2[0-3]):([0-5]\d)$/.test(v);
+              },
+              message: 'Invalid time format. Use HH:MM 24-hour format'
+            }
+          },
+          isBooked: {
+            type: Boolean,
+            default: false
+          }
         }]
       }],
       consultationMethods: [{
