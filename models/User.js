@@ -23,6 +23,29 @@ const UserSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+  userProfile: {
+    age: {
+      type: Number,
+      min: 0,
+      max: 120
+    },
+    gender: {
+      type: String,
+      enum: ['Male', 'Female', 'Other', 'Prefer not to say']
+    },
+    aboutMyself: {
+      type: String,
+      maxlength: 500
+    },
+    healthGoals: [{
+      type: String,
+      trim: true
+    }],
+    interests: [{
+      type: String,
+      trim: true
+    }]
+  },
   professionalProfile: {
     specialization: {
       type: String,

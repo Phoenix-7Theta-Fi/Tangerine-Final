@@ -26,7 +26,7 @@ export default function Navigation() {
   ];
 
   const userLinks = [
-    // Add any user-specific links here
+    { href: '/dashboard/user/profile', label: 'Profile', roles: ['user'] }
   ];
 
   // Filter links based on user role
