@@ -16,7 +16,9 @@ export default function Navigation() {
   // Common navigation items
   const commonLinks = [
     { href: '/blog', label: 'Blog', roles: ['user', 'practitioner'] },
-    { href: '/ai-chat', label: 'AI Assistant', roles: ['user', 'practitioner'] }
+    { href: '/ai-chat', label: 'AI Assistant', roles: ['user', 'practitioner'] },
+    // New link for practitioners page
+    { href: '/practitioners', label: 'Practitioners', roles: ['user'] }
   ];
 
   // Role-specific navigation items
