@@ -12,14 +12,30 @@ export default async function handler(req, res) {
     connection = await connectDB();
     const db = await connection.getDatabase();
     const blogCollection = db.collection('blogposts');
+    const usersCollection = db.collection('users');
     const embeddingsCollection = db.collection('blog_embeddings');
 
     const newPost = req.body;
 
     // Validate input
-    if (!newPost.title || !newPost.content) {
-      return res.status(400).json({ message: 'Title and content are required' });
+    if (!newPost.title || !newPost.content || !newPost.author) {
+      return res.status(400).json({ message: 'Title, content and author are required' });
     }
+
+    // Find the author's ID and verify they are a practitioner
+    const author = await usersCollection.findOne({
+      name: newPost.author,
+      role: 'practitioner'
+    });
+
+    if (!author) {
+      return res.status(400).json({ 
+        message: 'Author must be a registered practitioner' 
+      });
+    }
+
+    // Add author's ID to the post
+    newPost.authorId = author._id;
 
     // Generate embedding
     const embeddingText = `${newPost.title} ${newPost.content}`;
@@ -28,7 +44,7 @@ export default async function handler(req, res) {
     // Insert the blog post
     const postResult = await blogCollection.insertOne(newPost);
 
-    // Store the embedding
+    // Store the embedding with author metadata
     await embeddingsCollection.insertOne({
       postId: postResult.insertedId,
       text: embeddingText,
@@ -36,6 +52,7 @@ export default async function handler(req, res) {
       metadata: {
         title: newPost.title,
         author: newPost.author,
+        authorId: newPost.authorId,
         date: newPost.date,
         tags: newPost.tags
       }

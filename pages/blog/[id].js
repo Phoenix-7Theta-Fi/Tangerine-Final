@@ -2,7 +2,7 @@ import { connectDB } from '../../lib/mongodb';
 import { ObjectId } from 'mongodb';
 import Link from 'next/link';
 
-export default function BlogPostPage({ post }) {
+export default function BlogPostPage({ post, author }) {
   // If no post is found, show a not found message
   if (!post) {
     return (
@@ -24,9 +24,29 @@ export default function BlogPostPage({ post }) {
           <h1 className="text-4xl font-bold mb-4">{post.title}</h1>
           
           <div className="flex items-center text-gray-600 dark:text-gray-400 mb-4">
-            <span className="mr-4">
-              By {post.author}
-            </span>
+            {post.noPractitioner ? (
+              <span className="mr-4">By {post.author} (Practitioner not assigned)</span>
+            ) : author ? (
+              <Link 
+                href={`/practitioners/${author._id}`}
+                className="flex items-center group mr-4 hover:text-blue-600 transition-colors"
+              >
+                <span className="mr-2">By {post.author}</span>
+                <svg 
+                  className="w-5 h-5 text-gray-400 group-hover:text-blue-500 transition-colors"
+                  fill="currentColor" 
+                  viewBox="0 0 20 20"
+                >
+                  <path 
+                    fillRule="evenodd" 
+                    d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z" 
+                    clipRule="evenodd" 
+                  />
+                </svg>
+              </Link>
+            ) : (
+              <span>By {post.author}</span>
+            )}
             <span>
               Published on {new Date(post.date).toLocaleDateString('en-US', {
                 year: 'numeric',
@@ -93,7 +113,7 @@ export async function getStaticPaths() {
 
     return { 
       paths, 
-      fallback: 'blocking' // Improved fallback strategy
+      fallback: 'blocking'
     };
   } catch (error) {
     console.error("Static Paths Error:", error);
@@ -114,6 +134,7 @@ export async function getStaticProps({ params }) {
     connection = await connectDB();
     const db = await connection.getDatabase();
     const blogCollection = db.collection('blogposts');
+    const usersCollection = db.collection('users');
 
     // Find the post by its ID
     const post = await blogCollection.findOne({ 
@@ -127,16 +148,34 @@ export async function getStaticProps({ params }) {
       };
     }
 
+    // Find the author if authorId exists and post has a practitioner
+    let author = null;
+    if (post.authorId && !post.noPractitioner) {
+      author = await usersCollection.findOne(
+        { _id: new ObjectId(post.authorId) },
+        { 
+          projection: { 
+            name: 1, 
+            professionalProfile: {
+              specialization: 1,
+              professionalTitle: 1
+            } 
+          } 
+        }
+      );
+    }
+
     return {
       props: {
-        post: JSON.parse(JSON.stringify(post)), // Serialize MongoDB document
+        post: JSON.parse(JSON.stringify(post)),
+        author: author ? JSON.parse(JSON.stringify(author)) : null
       },
-      revalidate: 60 // Regenerate page every 60 seconds
+      revalidate: 60
     };
   } catch (error) {
     console.error("Blog Post Fetch Error:", error);
     return {
-      notFound: true, // Show 404 page
+      notFound: true,
     };
   } finally {
     if (connection) {
